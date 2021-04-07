@@ -1,0 +1,7 @@
+/.mypy_cache
+/.pytest_cache
+/.vscode
+/outputs
+*.out
+*.pyc
+/venv
