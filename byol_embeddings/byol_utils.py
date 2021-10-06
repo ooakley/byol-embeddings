@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 from typing import Union, Any
+from datetime import datetime
 
 import torch
 import torch.nn as nn
@@ -12,6 +13,7 @@ from torch.utils.data import Dataset
 from torchvision import models
 from tqdm import tqdm
 import numpy as np
+import matplotlib.pyplot as plt
 
 from byol_pytorch import BYOL
 
@@ -22,6 +24,7 @@ class FullDataset(Dataset):
     def __init__(self, numpy_array: np.ndarray) -> None:
         """Initialise with numpy array."""
         self.data = numpy_array
+        print("Array shape loaded into torch dataset:", numpy_array.shape)
 
     def __len__(self) -> int:
         """Return length of dataset."""
@@ -44,6 +47,7 @@ class BYOLHandler:
         """Initialise model and learner setup."""
         self.device = device
         self.model = models.wide_resnet101_2(pretrained=False).to(self.device)
+        self.timestamp = datetime.now().strftime("%m-%d-%Y_%H-%M-%S")
 
         if load_from_path is not None:
             print("Loading model...")
@@ -75,7 +79,7 @@ class BYOLHandler:
         """Train model on dataset for specified number of epochs."""
         for i in range(epochs):
             dataloader = torch.utils.data.DataLoader(
-                dataset, batch_size=64, shuffle=True, num_workers=2
+                dataset, batch_size=64, shuffle=True
             )
             if use_tqdm:
                 dataloader = tqdm(dataloader)
@@ -91,17 +95,28 @@ class BYOLHandler:
                 torch.cuda.empty_cache()
             print("Epochs performed:", i + 1)
 
-    def save(self, filename: str = "test.pt") -> None:
+    def save(self) -> None:
         """Save model."""
         if not os.path.exists("outputs"):
             os.mkdir("outputs")
-        save_path = os.path.join("outputs", filename)
+        dirpath = os.path.join("outputs", self.timestamp)
+        if not os.path.exists(dirpath):
+            os.mkdir(dirpath)
+
+        save_path = os.path.join(dirpath, "model.pt")
         torch.save(self.model.state_dict(), save_path)
+
+        # Plot loss history:
+        fig, ax = plt.subplots()
+        ax.plot(self.loss_history)
+        fig.tight_layout()
+        fig.savefig(os.path.join(dirpath, "loss_v_batch.png"), dpi=300)
+        plt.close()
 
     def infer(self, dataset: torch.utils.data.Dataset, use_tqdm: bool = False) -> np.ndarray:
         """Use model to infer embeddings of provided dataset."""
         dataloader = torch.utils.data.DataLoader(
-            dataset, batch_size=32, shuffle=False, num_workers=0
+            dataset, batch_size=512, shuffle=False, num_workers=0
         )
         embeddings_list: list[np.ndarray] = []
         with torch.no_grad():
